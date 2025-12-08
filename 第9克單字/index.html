@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>第九單元—拼字遊戲</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+      background: #f5f7fb;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 32px;
+    }
+    .subtitle {
+      text-align: center;
+      margin-bottom: 24px;
+      color: #666;
+      font-size: 15px;
+    }
+    .game-container {
+      max-width: 1100px;
+      margin: 0 auto 40px;
+      padding: 0 16px 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px 24px 28px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card.completed {
+      box-shadow: 0 0 0 3px #4caf50 inset;
+    }
+    .card img {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      cursor: pointer;
+    }
+    .hint {
+      margin-bottom: 12px;
+      font-size: 16px;
+      color: #444;
+    }
+    .answer-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      min-height: 48px;
+    }
+    .answer-slot {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 2px dashed #cfd3e3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: bold;
+    }
+    .answer-row.correct .answer-slot {
+      border-color: #4caf50;
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .letters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .letter-btn {
+      min-width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: none;
+      background: #eef1ff;
+      color: #333;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+    }
+    .letter-btn:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15) inset;
+    }
+    .letter-btn.used {
+      opacity: 0.2;
+      pointer-events: none;
+    }
+    .message {
+      text-align: center;
+      margin-top: 8px;
+      min-height: 24px;
+      font-size: 14px;
+    }
+    .message.ok {
+      color: #2e7d32;
+    }
+    .message.error {
+      color: #d32f2f;
+    }
+    .controls {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .reset-btn {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: none;
+      background: #ffb74d;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    @media (max-width: 960px) {
+      .card {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>第九單元—拼字遊戲</h1>
+  <div class="subtitle">點圖聽發音，點下面的字母拼出單字。三個單字完成後會自動再洗牌，讓你一直玩下去！</div>
+
+  <div class="controls">
+    <button class="reset-btn" id="resetAllBtn">重新洗牌再玩一次</button>
+  </div>
+
+  <div class="game-container" id="gameContainer">
+    <!-- 卡片會由 JavaScript 自動產生 -->
+  </div>
+
+  <script>
+    // 🎯 第九課三個單字（圖片檔名請確定放在同一個資料夾）
+    const WORDS = [
+      {
+        id: 1,
+        word: "SHARE",
+        zhHint: "分享",
+        image: "share.png"
+      },
+      {
+        id: 2,
+        word: "STUDY",
+        zhHint: "讀書",
+        image: "study.png"
+      },
+      {
+        id: 3,
+        word: "PLAY",
+        zhHint: "玩耍",
+        image: "play.png"
+      }
+    ];
+
+    const gameContainer = document.getElementById("gameContainer");
+
+    // 小工具：打亂陣列
+    function shuffle(array) {
+      const arr = array.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // 用瀏覽器內建語音念出單字（不用 mp3）
+    function speakWord(text) {
+      if (!("speechSynthesis" in window)) {
+        return; // 很舊的瀏覽器就不念
+      }
+
+      const utter = new SpeechSynthesisUtterance(text.toLowerCase());
+      utter.lang = "en-US";
+      utter.rate = 0.9;  // 語速稍慢，給小朋友聽
+      utter.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      // 優先找英文女聲（如果找不到，就用系統預設）
+      const female = voices.find(v =>
+        v.lang.startsWith("en") &&
+        /female|woman|女/i.test(v.name)
+      );
+      if (female) {
+        utter.voice = female;
+      }
+
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    }
+
+    // 生成整個遊戲畫面
+    function renderGame() {
+      gameContainer.innerHTML = "";
+
+      WORDS.forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.dataset.id = item.id;
+
+        // 圖片（點圖會唸）
+        const img = document.createElement("img");
+        img.src = item.image;
+        img.alt = item.word;
+        img.addEventListener("click", () => speakWord(item.word));
+        card.appendChild(img);
+
+        // 中文提示
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = `${item.zhHint}（點圖可聽發音）`;
+        card.appendChild(hint);
+
+        // 答案格
+        const answerRow = document.createElement("div");
+        answerRow.className = "answer-row";
+        answerRow.dataset.answerFor = item.id;
+
+        for (let i = 0; i < item.word.length; i++) {
+          const slot = document.createElement("div");
+          slot.className = "answer-slot";
+          slot.dataset.slotIndex = i;
+          answerRow.appendChild(slot);
+        }
+        card.appendChild(answerRow);
+
+        // 字母區
+        const lettersRow = document.createElement("div");
+        lettersRow.className = "letters-row";
+        lettersRow.dataset.lettersFor = item.id;
+
+        const scrambledLetters = shuffle(item.word.split(""));
+        scrambledLetters.forEach((ch) => {
+          const btn = document.createElement("button");
+          btn.className = "letter-btn";
+          btn.textContent = ch;
+          btn.dataset.letter = ch;
+          btn.dataset.used = "false";
+          btn.addEventListener("click", () =>
+            handleLetterClick(item, card, btn)
+          );
+          lettersRow.appendChild(btn);
+        });
+        card.appendChild(lettersRow);
+
+        // 訊息列
+        const msg = document.createElement("div");
+        msg.className = "message";
+        msg.dataset.messageFor = item.id;
+        card.appendChild(msg);
+
+        gameContainer.appendChild(card);
+      });
+    }
+
+    // 點字母：填入下一個空格
+    function handleLetterClick(item, cardElem, btnElem) {
+      if (btnElem.dataset.used === "true") return;
+      if (cardElem.classList.contains("completed")) return;
+
+      const answerRow = cardElem.querySelector(".answer-row");
+      const slots = Array.from(answerRow.querySelectorAll(".answer-slot"));
+
+      // 找下一個空 slot
+      const nextSlot = slots.find(slot => !slot.textContent);
+      if (!nextSlot) return;
+
+      nextSlot.textContent = btnElem.dataset.letter;
+      btnElem.classList.add("used");
+      btnElem.dataset.used = "true";
+
+      const currentAnswer = slots.map(s => s.textContent || "").join("");
+
+      if (currentAnswer.length === item.word.length) {
+        if (currentAnswer === item.word) {
+          handleCorrect(item, cardElem);
+        } else {
+          handleWrong(item, cardElem);
+        }
+      }
+    }
+
+    // 答對
+    function handleCorrect(item, cardElem) {
+      const answerRow = cardElem.querySelector(".answer-row");
+      const msg = cardElem.querySelector(".message");
+      answerRow.classList.add("correct");
+      msg.textContent = "太棒了！答對囉！";
+      msg.className = "message ok";
+      cardElem.classList.add("completed");
+
+      // 答對時也幫忙唸一次單字
+      speakWord(item.word);
+
+      // 檢查是不是三個都完成
+      setTimeout(() => {
+        if (checkAllCompleted()) {
+          setTimeout(() => {
+            alert("三個都拼對了！再洗牌玩一次吧！");
+            startNewRound();
+          }, 400);
+        }
+      }, 400);
+    }
+
+    // 答錯：清空答案 & 還原字母
+    function handleWrong(item, cardElem) {
+      const answerRow = cardElem.querySelector(".answer-row");
+      const slots = answerRow.querySelectorAll(".answer-slot");
+      const letters = cardElem.querySelectorAll(".letter-btn");
+      const msg = cardElem.querySelector(".message");
+
+      msg.textContent = "再想想看～不太對喔！";
+      msg.className = "message error";
+
+      setTimeout(() => {
+        slots.forEach(slot => (slot.textContent = ""));
+        letters.forEach(btn => {
+          btn.classList.remove("used");
+          btn.dataset.used = "false";
+        });
+        msg.textContent = "";
+      }, 700);
+    }
+
+    // 有沒有三個都完成？
+    function checkAllCompleted() {
+      const cards = Array.from(document.querySelectorAll(".card"));
+      return cards.every(card => card.classList.contains("completed"));
+    }
+
+    // 重新開始一輪：清空 + 重新洗牌
+    function startNewRound() {
+      const cards = Array.from(document.querySelectorAll(".card"));
+
+      cards.forEach(card => {
+        card.classList.remove("completed");
+        const answerRow = card.querySelector(".answer-row");
+        const slots = answerRow.querySelectorAll(".answer-slot");
+        const msg = card.querySelector(".message");
+        const lettersRow = card.querySelector(".letters-row");
+        const wordId = Number(card.dataset.id);
+        const wordObj = WORDS.find(w => w.id === wordId);
+
+        // 清空答案
+        answerRow.classList.remove("correct");
+        slots.forEach(slot => (slot.textContent = ""));
+        msg.textContent = "";
+        msg.className = "message";
+
+        // 重新洗牌字母
+        const scrambledLetters = shuffle(wordObj.word.split(""));
+        lettersRow.innerHTML = "";
+        scrambledLetters.forEach(ch => {
+          const btn = document.createElement("button");
+          btn.className = "letter-btn";
+          btn.textContent = ch;
+          btn.dataset.letter = ch;
+          btn.dataset.used = "false";
+          btn.addEventListener("click", () =>
+            handleLetterClick(wordObj, card, btn)
+          );
+          lettersRow.appendChild(btn);
+        });
+      });
+    }
+
+    // 「重新洗牌」按鈕
+    document.getElementById("resetAllBtn").addEventListener("click", () => {
+      startNewRound();
+    });
+
+    // 有些瀏覽器語音清單會晚一點才載入，碰一下讓它載入
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {};
+    }
+
+    // 初始化
+    renderGame();
+  </script>
+</body>
+</html>
