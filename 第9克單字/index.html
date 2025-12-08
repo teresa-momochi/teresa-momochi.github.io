@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unit 9 Spelling Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f9fafb;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+
+    .card img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+
+    .letters {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0;
+      min-height: 48px;
+    }
+
+    .letter {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e5e7eb;
+      border-radius: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .letter.dragging {
+      opacity: 0.6;
+      cursor: grabbing;
+    }
+
+    .letters.correct .letter {
+      background: #bbf7d0;
+    }
+
+    .status {
+      font-size: 14px;
+      min-height: 20px;
+      color: #16a34a;
+      font-weight: 600;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- ✅ 標題不再出現單字 -->
+  <h1>Unit 9 – Spelling Game</h1>
+  <div class="subtitle">點圖片聽發音，拖曳下面的字母拼出第九課生字</div>
+
+  <div class="container">
+
+    <!-- SHARE -->
+    <div class="card">
+      <img src="share.png" alt="word 1" onclick="speakWord('share')" />
+      <div class="letters" data-word="SHARE"></div>
+      <div class="status"></div>
+    </div>
+
+    <!-- STUDY -->
+    <div class="card">
+      <img src="study.png" alt="word 2" onclick="speakWord('study')" />
+      <div class="letters" data-word="STUDY"></div>
+      <div class="status"></div>
+    </div>
+
+    <!-- PLAY -->
+    <div class="card">
+      <img src="play.png" alt="word 3" onclick="speakWord('play')" />
+      <div class="letters" data-word="PLAY"></div>
+      <div class="status"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // 語音朗讀
+    function speakWord(word) {
+      if (!("speechSynthesis" in window)) return;
+      const utter = new SpeechSynthesisUtterance(word);
+      utter.lang = "en-US";
+      utter.rate = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    }
+
+    // 打亂陣列
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    let dragSource = null;
+
+    // 初始化單一容器
+    function initContainer(container) {
+      const word = container.dataset.word;      // 例如 "SHARE"
+      let letters;
+
+      // 保證一開始的排列「不是」正確答案
+      do {
+        letters = shuffle(word.split(""));
+      } while (letters.join("") === word);
+
+      // 清空舊的
+      container.innerHTML = "";
+      const status = container.nextElementSibling;
+      if (status) status.textContent = "";
+      container.classList.remove("correct");
+
+      letters.forEach(ch => {
+        const div = document.createElement("div");
+        div.className = "letter";
+        div.textContent = ch;
+        div.draggable = true;
+
+        div.addEventListener("dragstart", e => {
+          dragSource = div;
+          div.classList.add("dragging");
+          e.dataTransfer.setData("text/plain", "");
+        });
+
+        div.addEventListener("dragend", () => {
+          div.classList.remove("dragging");
+        });
+
+        div.addEventListener("dragover", e => {
+          e.preventDefault();
+        });
+
+        div.addEventListener("drop", e => {
+          e.preventDefault();
+          if (!dragSource || dragSource === div) return;
+
+          const parent = div.parentNode;
+          const children = Array.from(parent.children);
+          const fromIndex = children.indexOf(dragSource);
+          const toIndex = children.indexOf(div);
+
+          if (fromIndex < toIndex) {
+            parent.insertBefore(dragSource, div.nextSibling);
+          } else {
+            parent.insertBefore(dragSource, div);
+          }
+          dragSource.classList.remove("dragging");
+          dragSource = null;
+
+          checkWord(parent);
+        });
+
+        container.appendChild(div);
+      });
+    }
+
+    // 檢查是否拼對
+    function checkWord(container) {
+      const correct = container.dataset.word;
+      const current = Array.from(container.children)
+        .map(el => el.textContent)
+        .join("");
+      const status = container.nextElementSibling;
+
+      if (current === correct) {
+        container.classList.add("correct");
+        if (status) status.textContent = "✅ Great!";
+        speakWord(correct.toLowerCase());
+        checkAllFinished();
+      } else {
+        container.classList.remove("correct");
+        if (status) status.textContent = "";
+      }
+    }
+
+    // 全部三個字都完成後 → 自動再打亂玩一次
+    function checkAllFinished() {
+      const containers = document.querySelectorAll(".letters");
+      const allDone = Array.from(containers).every(c =>
+        c.classList.contains("correct")
+      );
+      if (allDone) {
+        // 等 1 秒讓小朋友看到全部都完成，再重新打亂
+        setTimeout(() => {
+          const cs = document.querySelectorAll(".letters");
+          cs.forEach(initContainer);
+        }, 1000);
+      }
+    }
+
+    // 初始設定
+    function setupLetters() {
+      const containers = document.querySelectorAll(".letters");
+      containers.forEach(initContainer);
+    }
+
+    setupLetters();
+  </script>
+</body>
+</html>
