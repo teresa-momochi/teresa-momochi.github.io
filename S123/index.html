@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Christmas Matching Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      background: #ffe6f2;  /* ★ 淡淡粉紅色 ★ */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 10px 0 5px;
+      font-size: 26px;
+      text-align: center;
+      color: #d81b60; /* 粉紅主題色 */
+    }
+
+    p.subtitle {
+      margin: 0 0 15px;
+      font-size: 15px;
+      text-align: center;
+      color: #ad1457;
+    }
+
+    #game-board {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(60px, 110px));
+      gap: 10px;
+      justify-content: center;
+      margin-top: 10px;
+      background: #fff0f7;  /* 卡片區淡粉色 */
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .card {
+      width: 100%;
+      padding-top: 100%;
+      position: relative;
+      perspective: 800px;
+      cursor: pointer;
+    }
+
+    .card-inner {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.45s;
+      transform-style: preserve-3d;
+    }
+
+    .card.flipped .card-inner,
+    .card.matched .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-front,
+    .card-back {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+      background: white;
+      user-select: none;
+    }
+
+    .card-back {
+      background: #ffe0ec;
+      border: 2px solid #f48fb1;
+    }
+
+    .card-back img {
+      max-width: 80%;
+      max-height: 80%;
+    }
+
+    .card-front {
+      transform: rotateY(180deg);
+      border: 2px solid #f06292;
+      background: #ffffff;
+      font-size: 18px;
+      color: #ad1457;
+      padding: 4px;
+      text-align: center;
+    }
+
+    .card-front img {
+      max-width: 90%;
+      max-height: 90%;
+    }
+
+    .word-card {
+      font-weight: bold;
+      color: #d81b60;
+    }
+
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: none;
+      background: #d81b60;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      filter: brightness(1.1);
+    }
+
+    #message {
+      margin-top: 8px;
+      font-size: 16px;
+      color: #c2185b;
+      text-align: center;
+      min-height: 24px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎄 Christmas Matching Game 🎀</h1>
+  <p class="subtitle">
+    點聖誕樹翻牌 🎄 聽英文單字，把圖片和單字配對成功會聽到
+    <b>Ho ho ho!</b>  
+    全部完成會自動再玩一次 🎅✨
+  </p>
+
+  <div id="controls">
+    <button id="reset-btn">重新洗牌</button>
+  </div>
+  <div id="message"></div>
+
+  <div id="game-board"></div>
+
+  <script>
+    // 五個單字與對應圖片 key
+    const items = [
+      { key: "stocking", label: "stocking", img: "stocking.png" },
+      { key: "santa", label: "Santa Claus", img: "santa.png" },
+      { key: "wreath", label: "wreath", img: "wreath.png" },
+      { key: "snowman", label: "snowman", img: "snowman.png" },
+      { key: "bell", label: "bell", img: "bell.png" }
+    ];
+
+    const board = document.getElementById("game-board");
+    const resetBtn = document.getElementById("reset-btn");
+    const messageEl = document.getElementById("message");
+
+    let cardsData = [];
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let matchedCount = 0;
+
+    function createCardsData() {
+      const temp = [];
+      items.forEach(item => {
+        temp.push({ key: item.key, label: item.label, type: "word" });
+        temp.push({ key: item.key, label: item.label, type: "image", img: item.img });
+      });
+
+      // 洗牌
+      for (let i = temp.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [temp[i], temp[j]] = [temp[j], temp[i]];
+      }
+      cardsData = temp;
+    }
+
+    function buildBoard() {
+      board.innerHTML = "";
+      cardsData.forEach((data, index) => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+        card.dataset.index = index;
+        card.dataset.key = data.key;
+        card.dataset.type = data.type;
+        card.dataset.label = data.label;
+
+        const inner = document.createElement("div");
+        inner.classList.add("card-inner");
+
+        // 背面：聖誕樹
+        const back = document.createElement("div");
+        back.classList.add("card-back");
+        const backImg = document.createElement("img");
+        backImg.src = "images/tree.png";
+        backImg.alt = "tree";
+        backImg.onerror = () => (back.textContent = "🎄");
+        back.appendChild(backImg);
+
+        // 正面：單字或圖片
+        const front = document.createElement("div");
+        front.classList.add("card-front");
+
+        if (data.type === "word") {
+          front.classList.add("word-card");
+          front.textContent = data.label;
+        } else {
+          const img = document.createElement("img");
+          img.src = "images/" + data.img;
+          img.alt = data.label;
+          img.onerror = () => {
+            front.textContent = data.label;
+            front.classList.add("word-card");
+          };
+          front.appendChild(img);
+        }
+
+        inner.appendChild(back);
+        inner.appendChild(front);
+        card.appendChild(inner);
+        card.addEventListener("click", onCardClick);
+        board.appendChild(card);
+      });
+    }
+
+    // 單字發音
+    function speakWord(text) {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+
+    // Ho ho ho!
+    function playSantaLaugh() {
+      if (!("speechSynthesis" in window)) return;
+      const u = new SpeechSynthesisUtterance("Ho ho ho!");
+      u.lang = "en-US";
+      u.pitch = 0.7;
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+
+    function onCardClick(e) {
+      if (lockBoard) return;
+
+      const card = e.currentTarget;
+      if (card.classList.contains("flipped") || card.classList.contains("matched")) return;
+
+      card.classList.add("flipped");
+
+      const label = card.dataset.label;
+      speakWord(label);
+
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      secondCard = card;
+      lockBoard = true;
+
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const match =
+        firstCard.dataset.key === secondCard.dataset.key &&
+        firstCard.dataset.type !== secondCard.dataset.type;
+
+      if (match) {
+        firstCard.classList.add("matched");
+        secondCard.classList.add("matched");
+        matchedCount += 2;
+
+        playSantaLaugh();
+        messageEl.textContent = "🎀 很棒！找到一組了！";
+
+        resetSelection();
+
+        if (matchedCount === cardsData.length) {
+          messageEl.textContent = "🎉 全部完成！Ho ho ho! 再玩一次～";
+          setTimeout(resetGame, 1500);
+        }
+      } else {
+        setTimeout(() => {
+          firstCard.classList.remove("flipped");
+          secondCard.classList.remove("flipped");
+          resetSelection();
+        }, 900);
+      }
+    }
+
+    function resetSelection() {
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+    }
+
+    function resetGame() {
+      matchedCount = 0;
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      messageEl.textContent = "";
+      createCardsData();
+      buildBoard();
+    }
+
+    resetBtn.addEventListener("click", resetGame);
+
+    // Start
+    resetGame();
+  </script>
+</body>
+</html>
